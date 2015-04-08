@@ -142,7 +142,7 @@ prob_params.viscosity = nu_func
 prob_params.friction = Constant(0.0025)
 # Temporal settings
 prob_params.start_time = Constant(0)
-prob_params.finish_time = Constant(12.5*60*60)
+prob_params.finish_time = Constant(0.2*60*60)
 prob_params.dt = Constant(5*60)
 # The initial condition consists of three components: u_x, u_y and eta.
 # Note that we set the velocity components to a small positive number, as some
@@ -171,6 +171,8 @@ for sol in solver.solve(annotate=False):
     log(INFO, "Computed solution at time %f in %f s." % (simulation_time, timer.stop()))
     f_state << (sol["state"], simulation_time)
     timer.start()
+plot(s["state"])
+interactive()
 
 # How to run the example
 # **********************
