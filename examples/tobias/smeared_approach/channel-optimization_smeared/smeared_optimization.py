@@ -38,7 +38,7 @@ prob_params.friction = Constant(0.0025)
 
 # We here use the smeared tubrine approach
 turbine = SmearedTurbine()#friction=0.06)
-V = FunctionSpace(domain.mesh, "DG", 7)
+V = FunctionSpace(domain.mesh, "CG", 2)
 farm = Farm(domain, turbine, function_space=V, site_ids=1)
 
 prob_params.tidal_farm = farm
@@ -86,5 +86,5 @@ farm.friction_function.assign(Constant(init_tf))
 # Comment this for only forward modelling
 #if args.optimize:
 maximize(rf, bounds=[0,model_turbine.maximum_smeared_friction],
-            method="L-BFGS-B", options={'maxiter': 25})
+            method="L-BFGS-B", options={'maxiter': 100})
 
