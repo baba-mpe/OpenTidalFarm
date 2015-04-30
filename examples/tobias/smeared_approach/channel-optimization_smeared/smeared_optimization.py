@@ -1,4 +1,4 @@
-import argparse
+#import argparse
 from opentidalfarm import *
 from model_turbine import ModelTurbine
 #from vorticity_solver import VorticitySolver
@@ -8,12 +8,12 @@ model_turbine = ModelTurbine()
 print model_turbine
 
 # Read the command line arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('--turbines', required=True, type=int, help='number of turbines')
+#parser = argparse.ArgumentParser()
+#parser.add_argument('--turbines', required=True, type=int, help='number of turbines')
 #parser.add_argument('--optimize', action='store_true', help='Optimise instead of just simulate')
 #parser.add_argument('--withcuts', action='store_true', help='with cut in/out speeds')
 #parser.add_argument('--cost', type=float, default=0., help='the cost coefficient')
-args = parser.parse_args()
+#args = parser.parse_args()
 
 model_turbine = ModelTurbine()
 print model_turbine
@@ -23,10 +23,11 @@ domain = FileDomain("mesh/mesh.xml")
 
 # Specify boundary conditions.
 bcs = BoundaryConditionSet()
-bcs.add_bc("u", Constant((2, 0)), facet_id=1)
+#bcs.add_bc("u", Constant((2, 0)), facet_id=1)
+bcs.add_bc("eta", Constant(0.1), facet_id=1)
 bcs.add_bc("eta", Constant(0), facet_id=2)
 # The free-slip boundary conditions.
-bcs.add_bc("u", Constant((0, 0)), facet_id=3, bctype="weak_dirichlet")
+bcs.add_bc("u", Constant((0, 0)), facet_id=3, bctype="strong_dirichlet")
 
 # Set the shallow water parameters
 prob_params = SteadySWProblem.default_parameters()
@@ -37,9 +38,23 @@ prob_params.depth = Constant(50)
 prob_params.friction = Constant(0.0025)
 
 # We here use the smeared tubrine approach
-turbine = SmearedTurbine()#friction=0.06)
-V = FunctionSpace(domain.mesh, "CG", 2)
-farm = Farm(domain, turbine, function_space=V, site_ids=1)
+turbine = SmearedTurbine()
+V = FunctionSpace(domain.mesh, "CG", 1)
+farm = Farm(domain, turbine, function_space=V)
+
+# Sub domain for inflow (right)
+class FarmDomain(SubDomain):
+    def inside(self, x, on_boundary):
+        return (1500 <= x[0] <= 2500 and
+                1500  <= x[1] <= 2500)
+
+farm_domain = FarmDomain()
+domains = MeshFunction("size_t", domain.mesh, domain.mesh.topology().dim())
+domains.set_all(0)
+farm_domain.mark(domains, 1)
+site_dx = Measure("dx")[domains]
+farm.site_dx = site_dx(1)
+plot(domains, interactive=True)
 
 prob_params.tidal_farm = farm
 
@@ -55,11 +70,11 @@ sol_params = CoupledSWSolver.default_parameters()
 sol_params.dump_period = 1
 solver = CoupledSWSolver(problem, sol_params)
 
-V = solver.function_space.extract_sub_space([0]).collapse()
-Q = solver.function_space.extract_sub_space([1]).collapse()
+#V = solver.function_space.extract_sub_space([0]).collapse()
+#Q = solver.function_space.extract_sub_space([1]).collapse()
 
-base_u = Function(V, name="base_u")
-base_u_tmp = Function(V, name="base_u_tmp")
+#base_u = Function(V, name="base_u")
+#base_u_tmp = Function(V, name="base_u_tmp")
 
 # Next we create a reduced functional, that is the functional considered as a
 # pure function of the control by implicitly solving the shallow water equations. For
@@ -80,11 +95,14 @@ print rf_params
 # Now we can define the constraints for the controls and start the
 # optimisation.
 
-init_tf = model_turbine.maximum_smeared_friction/1000.*args.turbines
+init_tf = 0#model_turbine.maximum_smeared_friction/1000.*args.turbines
 farm.friction_function.assign(Constant(init_tf))
 
 # Comment this for only forward modelling
 #if args.optimize:
 maximize(rf, bounds=[0,model_turbine.maximum_smeared_friction],
             method="L-BFGS-B", options={'maxiter': 100})
+#maximize(rf, bounds=[0,100.],
+#            method="L-BFGS-B", options={'maxiter': 100})
+
 
