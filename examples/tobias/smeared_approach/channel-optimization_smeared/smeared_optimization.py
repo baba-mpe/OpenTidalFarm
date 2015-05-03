@@ -5,7 +5,7 @@ from model_turbine import ModelTurbine
 #import time
 
 model_turbine = ModelTurbine()
-print model_turbine
+#print model_turbine
 
 # Read the command line arguments
 #parser = argparse.ArgumentParser()
@@ -15,8 +15,6 @@ print model_turbine
 #parser.add_argument('--cost', type=float, default=0., help='the cost coefficient')
 #args = parser.parse_args()
 
-model_turbine = ModelTurbine()
-print model_turbine
 
 # Create a rectangular domain.
 domain = FileDomain("mesh/mesh.xml")
@@ -27,7 +25,7 @@ bcs = BoundaryConditionSet()
 bcs.add_bc("eta", Constant(0.1), facet_id=1)
 bcs.add_bc("eta", Constant(0), facet_id=2)
 # The free-slip boundary conditions.
-bcs.add_bc("u", Constant((0, 0)), facet_id=3, bctype="strong_dirichlet")
+bcs.add_bc("u", Constant((0, 0)), facet_id=3, bctype="strong_dirichlet") #"weak_dirichlet") #"strong_dirichlet")
 
 # Set the shallow water parameters
 prob_params = SteadySWProblem.default_parameters()
@@ -39,7 +37,7 @@ prob_params.friction = Constant(0.0025)
 
 # We here use the smeared tubrine approach
 turbine = SmearedTurbine()
-V = FunctionSpace(domain.mesh, "CG", 1)
+V = FunctionSpace(domain.mesh, "CG", 2)
 farm = Farm(domain, turbine, function_space=V)
 
 # Sub domain for inflow (right)
@@ -83,7 +81,8 @@ solver = CoupledSWSolver(problem, sol_params)
 # water solver.
 
 functional = PowerFunctional(problem)
-control = TurbineFarmControl(farm)
+control = TurbineFarmControl(farm) #FunctionControlFarm
+#import ipdb; ipdb.set_trace()
 rf_params = ReducedFunctional.default_parameters()
 rf_params.automatic_scaling = None
 rf = ReducedFunctional(functional, control, solver, rf_params)
@@ -95,13 +94,14 @@ print rf_params
 # Now we can define the constraints for the controls and start the
 # optimisation.
 
-init_tf = 0#model_turbine.maximum_smeared_friction/1000.*args.turbines
+init_tf = 0 #model_turbine.maximum_smeared_friction/1000.*args.turbines
 farm.friction_function.assign(Constant(init_tf))
 
 # Comment this for only forward modelling
 #if args.optimize:
-maximize(rf, bounds=[0,model_turbine.maximum_smeared_friction],
-            method="L-BFGS-B", options={'maxiter': 100})
+mx = maximize(rf, bounds=[0,model_turbine.maximum_smeared_friction],
+            method="L-BFGS-B", options={'maxiter': 0})
+import ipdb; ipdb.set_trace()
 #maximize(rf, bounds=[0,100.],
 #            method="L-BFGS-B", options={'maxiter': 100})
 
