@@ -385,4 +385,4 @@ class TurbineFarmControl(object):
         self.farm = farm
 
     def data(self):
-        return numpy.asarray(self.farm.control_array)
+        return self.farm.control_array

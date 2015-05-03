@@ -5,7 +5,7 @@ from functionals import TimeIntegrator, PrototypeFunctional
 
 __all__ = ["FenicsReducedFunctional"]
 
-class FenicsReducedFunctional(object):
+class FenicsReducedFunctional(ReducedFunctional):
     """
     Following parameters are expected:
 
@@ -22,7 +22,7 @@ class FenicsReducedFunctional(object):
         if not isinstance(solver, Solver):
             raise ValueError, "solver argument of wrong type."
 
-        self.functional = functional
+        self.otf_functional = functional
         if not isinstance(functional, PrototypeFunctional):
             raise ValueError, "invalid functional argument."
 
@@ -33,6 +33,11 @@ class FenicsReducedFunctional(object):
 
         # Controls
         self.controls = enlisting.enlist(controls)
+        self.evaluate()
+        dolfin_adjoint_functional = self.time_integrator.dolfin_adjoint_functional(self.solver.state)
+
+        super(FenicsReducedFunctional, self).__init__(dolfin_adjoint_functional, controls)
+
 
     def evaluate(self, annotate=True):
         """ Return the functional value for the given control values. """
@@ -51,7 +56,7 @@ class FenicsReducedFunctional(object):
         final_only = (not self.solver.problem._is_transient or
                       self._problem_params.functional_final_time_only)
         self.time_integrator = TimeIntegrator(self.solver.problem,
-                                              self.functional, final_only)
+                                              self.otf_functional, final_only)
 
         for sol in self.solver.solve(annotate=annotate):
             self.time_integrator.add(sol["time"], sol["state"], sol["tf"],
@@ -73,7 +78,8 @@ class FenicsReducedFunctional(object):
         log(INFO, 'Start evaluation of dj')
         timer = dolfin.Timer("dj evaluation")
 
-        J = self.time_integrator.dolfin_adjoint_functional()
+        #J = self.time_integrator.dolfin_adjoint_functional()
+        J = self.functional
         dj = compute_gradient(J, self.controls, forget=forget, **kwargs)
         dolfin.parameters["adjoint"]["stop_annotating"] = False
 

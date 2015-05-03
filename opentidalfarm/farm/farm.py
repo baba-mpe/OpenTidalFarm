@@ -1,5 +1,5 @@
 import os
-from dolfin import FunctionSpace
+from dolfin import FunctionSpace, Function
 from .base_farm import BaseFarm
 
 
@@ -26,3 +26,24 @@ class Farm(BaseFarm):
 
         # Set the function space in the cache.
         self.turbine_cache.set_function_space(function_space)
+
+
+class FunctionControlFarm(Farm):
+    """A turbine farm whose control data is a Dolfin :py:class:`Function`."""
+
+
+    @property
+    def control_array(self):
+        """A serialized representation of the farm based on the controls.
+
+        :returns: A serialized representation of the farm based on the controls.
+        :rtype: numpy.ndarray
+        """
+
+        if self._turbine_specification.smeared:
+            m = Function(self._turbine_function_space)
+        else:
+            raise NotImplementedError("Don't know how to produce a control array for this type of farm")
+
+        return m
+

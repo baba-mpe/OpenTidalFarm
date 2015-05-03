@@ -72,28 +72,28 @@ prob_params = SWProblem.default_parameters()
 # First we define the computational domain. We load a previously generated mesh
 # (using ```Gmsh``` and converted with ```dolfin-convert```):
 
-domain = FileDomain("mesh/headland.xml")
+domain = FileDomain("mesh/mesh.xml")
 
 # Once the domain is created we attach it to the problem parameters:
 
 prob_params.domain = domain
 
 turbine = SmearedTurbine()
-V = FunctionSpace(domain.mesh, "DG", 0)
-farm = Farm(domain, turbine, function_space=V)
+V = FunctionSpace(domain.mesh, "CG", 2)
+farm = Farm(domain, turbine, function_space=V, site_ids=1)
 
 # Sub domain for inflow (right)
-class FarmDomain(SubDomain):
-    def inside(self, x, on_boundary):
-        return (9200 <= x[0] <= 10800 and
-                2500  <= x[1] <= 3500)
+#class FarmDomain(SubDomain):
+#    def inside(self, x, on_boundary):
+#        return (9200 <= x[0] <= 10800 and
+#                2500  <= x[1] <= 3500)
 
-farm_domain = FarmDomain()
-domains = MeshFunction("size_t", domain.mesh, domain.mesh.topology().dim())
-domains.set_all(0)
-farm_domain.mark(domains, 1)
-site_dx = Measure("dx")[domains]
-farm.site_dx = site_dx(1)
+#farm_domain = FarmDomain()
+#domains = MeshFunction("size_t", domain.mesh, domain.mesh.topology().dim())
+#domains.set_all(0)
+#farm_domain.mark(domains, 1)
+#site_dx = Measure("dx")[domains]
+#farm.site_dx = site_dx(1)
 #plot(domains, interactive=True)
 
 prob_params.tidal_farm = farm
@@ -205,7 +205,7 @@ if args.optimize:
     maximize(rf, bounds=[0, model_turbine.maximum_smeared_friction],
             method="L-BFGS-B", options={'maxiter': 15})
 
-# Recompute the energy for the optimal farm array and store the results
+"""# Recompute the energy for the optimal farm array and store the results
 sol_h5 = HDF5File(mpi_comm_world(), "{}/solution.h5".format(sol_params.output_dir), "w")
 
 vort_solver = VorticitySolver(V)
@@ -267,4 +267,5 @@ print "Total turbine friction: %e." % total_friction
 print "Average smeared turbine friction: %e." % (total_friction / site_area)
 print "Average power / total friction: %e." % (avg_power / total_friction)
 print "Friction per discrete turbine: {}".format(model_turbine.friction)
-print "Estimated number of discrete turbines: {}".format(num_turbines)
+print "Estimated number of discrete turbines: {}".format(num_turbines)"""
+
