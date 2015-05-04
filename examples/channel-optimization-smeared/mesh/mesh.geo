@@ -2,7 +2,7 @@ basin_x = 4000;
 basin_y = 4000;
 site_x = 1000;
 site_y = 1000;
-element_size = 50;
+element_size = 20;
 element_size_coarse = 200;
 
 Point(1) = {0, 0, 0, element_size_coarse};
