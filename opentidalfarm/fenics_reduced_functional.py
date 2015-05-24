@@ -109,9 +109,12 @@ class FenicsReducedFunctional(ReducedFunctional):
     def derivative(self, forget=False, new_optimisation_iteration=True, **kwargs):
         """ Computes the first derivative of the functional with respect to its
         controls by solving the adjoint equations. """
-        #self.evaluate()
+        
         log(INFO, 'Start evaluation of dj')
-        timer = dolfin.Timer("dj evaluation")
+        timer = dolfin.Timer("dj evaluation") 
+
+        # If any of the parameters changed, the forward model needs to be re-run
+        #self.evaluate
 
         J = self.time_integrator.dolfin_adjoint_functional(self.solver.state)
         #J = self.functional
