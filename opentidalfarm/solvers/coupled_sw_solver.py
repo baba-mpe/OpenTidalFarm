@@ -387,7 +387,8 @@ CoupledSWSolverParameters."
                 if function_name =="u" and bctype == 'weak_dirichlet':
                     # this is the same thing as for DG above, except u_up is the boundary value and u_down is u+ or u- (they are the same)
                     # the fact that these are the same also means that the DG term above vanishes at the boundary and is replaced here
-                    Ad_mid += inner(un*(u_mid-u_expr), v)*ds(facet_id)
+                    #Ad_mid += inner(un*(u_mid-u_expr), v)*ds(facet_id)
+                    pass
 
 
         if include_viscosity:
