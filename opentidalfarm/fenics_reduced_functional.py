@@ -4,6 +4,10 @@ from dolfin_adjoint import *
 from solvers import Solver
 from functionals import TimeIntegrator, PrototypeFunctional
 import helpers
+import numpy as np
+import time
+import sys
+
 
 __all__ = ["FenicsReducedFunctional"]
 
@@ -19,7 +23,8 @@ class FenicsReducedFunctional(ReducedFunctional):
     """
 
     def __init__(self, functional, controls, solver):
-
+        self.tic = time.clock()
+        
         self.solver = solver
         if not isinstance(solver, Solver):
             raise ValueError, "solver argument of wrong type."
@@ -32,6 +37,9 @@ class FenicsReducedFunctional(ReducedFunctional):
         self._solver_params = solver.parameters
         self._problem_params = solver.problem.parameters
         self._time_integrator = None
+        
+        #Initialise self.prev with j_0 =0
+        self.j_prev = 0
 
         # Controls
         self.controls = enlisting.enlist(controls)
@@ -46,6 +54,8 @@ class FenicsReducedFunctional(ReducedFunctional):
         if self.solver.parameters.dump_period > 0:
             turbine_filename = os.path.join(solver.parameters.output_dir, "turbines.pvd")
             self.turbine_file = File(turbine_filename, "compressed")
+        
+        
 
     def evaluate(self, annotate=True):
         """ Return the functional value for the given control values. """
@@ -71,6 +81,22 @@ class FenicsReducedFunctional(ReducedFunctional):
                                      sol["is_final"])
 
         j = self.time_integrator.integrate()
+ 
+        #import ipdb; ipdb.set_trace()
+ 
+ 
+        # relative step size convergence criteria   
+        #if np.abs(j-self.j_prev)/max(np.abs(j),np.abs(self.j_prev),1) <= 10e09:
+        #    print "LALALLALALALALALLA"   
+        #    #toc = time.clock()
+        #    print "Run time:", tic - 3.
+        #else:            
+        #    self.j_prev=j
+
+
+
+
+
 
         timer.stop()
 
@@ -119,7 +145,23 @@ class FenicsReducedFunctional(ReducedFunctional):
         J = self.time_integrator.dolfin_adjoint_functional(self.solver.state)
         #J = self.functional
         dj = compute_gradient(J, self.controls, forget=forget, **kwargs)
+        #import ipdb; ipdb.set_trace()
+        
+        j = self.time_integrator.integrate()
+        print "functional value", j
+        import ipdb; ipdb.set_trace()
+          
+        
+        
+        
+ 
+
+       
+        
+        
         dolfin.parameters["adjoint"]["stop_annotating"] = False
+
+        print dj
 
         log(INFO, "Runtime: " + str(timer.stop()) + " s")
 
@@ -131,6 +173,20 @@ class FenicsReducedFunctional(ReducedFunctional):
             self.solver.optimisation_iteration += 1
             farm = self.solver.problem.parameters.tidal_farm
             self._update_turbine_farm()
+            print "Iteration number:", self.solver.optimisation_iteration
+            print "Gradient norm:", np.linalg.norm(dj.vector().array(), np.inf)
+
+            # Set convergence criteria
+            eps_dj = 1
+            if np.linalg.norm(dj.vector().array(), np.inf) <= eps_dj:
+                           
+                toc = time.clock()
+                print "Run time:", toc- self.tic 
+                        
+                sys.exit(0)
+            else:
+                pass            
+            
 
             if (self.solver.parameters.dump_period > 0 and
                 farm is not None):
