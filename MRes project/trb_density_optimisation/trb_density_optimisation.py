@@ -40,7 +40,7 @@ farm.site_dx = site_dx(1)
 algorithm otherwise fails""" 
 f = Constant(0.01)
 g = Constant(0.001)
-h = Expression('(x[0] <= 1250 && x[1] <= 650 && 750 <= x[0] && 350 <= x[1]) ? f : g', f=f, g=g)
+h = Expression('(x[0] <= 1250 && x[1] <= 650 && 750 <= x[0] && 350 <= x[1]) ? f : g', f=f, g=g, degree=2)
 farm.friction_function.assign(h)
 
 prob_params.tidal_farm = farm
@@ -56,7 +56,7 @@ prob_params.bcs = bcs
 prob_params.viscosity = Constant(5.)
 prob_params.depth = Constant(50.0)
 prob_params.friction = Constant(0.0025)
-prob_params.initial_condition = Expression(("1e-7", "0", "0"))
+prob_params.initial_condition = Expression(("1e-7", "0", "0"), degree=2)
 
 print prob_params
 problem = SteadySWProblem(prob_params)
@@ -76,6 +76,7 @@ functional = power_functional  - cost_functional
 # Define the control
 control = Control(farm.friction_function) 
 rf = FenicsReducedFunctional(functional, control, solver)
+rf([farm.friction_function])
 
 # define optimization problem for Optizelle
 opt_problem = MaximizationProblem(rf, bounds=(0., model_turbine.maximum_smeared_friction))
@@ -88,7 +89,7 @@ parameters = {
                  "algorithm_class" : Optizelle.AlgorithmClass.TrustRegion,
                  "H_type" : Optizelle.Operators.BFGS,
                  "dir" : Optizelle.LineSearchDirection.BFGS,
-                 "ipm": Optizelle.InteriorPointMethod.LogBarrier,
+                 #"ipm": Optizelle.InteriorPointMethod.LogBarrier,
                  "sigma": 0.95, 
                  "gamma": 0.5,
                  "linesearch_iter_max" : 20,
@@ -132,7 +133,7 @@ cost = float(model_turbine.cost_coefficient * total_friction)
 # Compute the pure power production
 # Note: don't use checkpoint here
 power_rf = FenicsReducedFunctional(power_functional, control, solver)
-power = power_rf.evaluate(m_opt)
+power = power_rf(m_opt)
 
 # Compute the site area
 V_r = FunctionSpace(domain.mesh, 'R', 0)
