@@ -11,7 +11,7 @@ from rectangle_mesh_domain import *
 approach. Underlying PDE described by the shalow water equations in steady state.
 Inequality constraints for friction given by lower limit =0 and upper limit 0.589"""
 
-set_log_level(INFO)
+set_log_level(ERROR)
 
 output_path = "results"
 
@@ -20,7 +20,7 @@ model_turbine = ModelTurbine()
 print model_turbine
 
 # Set up domain
-mesh = Mesh('mesh.xml')
+mesh = RectangleMesh(Point(0, 0), Point(2000, 1000), 10, 10)
 domain = RectangularMeshDomain(mesh, 0, 0, 2000, 1000)
 domains = domain.cell_ids
 
@@ -85,7 +85,7 @@ parameters = {
              "maximum_iterations": 200,
              "optizelle_parameters":
                  {
-                 "msg_level" : 10,
+                 "msg_level" : 1,
                  "algorithm_class" : Optizelle.AlgorithmClass.TrustRegion,
                  "H_type" : Optizelle.Operators.BFGS,
                  "dir" : Optizelle.LineSearchDirection.BFGS,
@@ -133,7 +133,7 @@ cost = float(model_turbine.cost_coefficient * total_friction)
 # Compute the pure power production
 # Note: don't use checkpoint here
 power_rf = FenicsReducedFunctional(power_functional, control, solver)
-power = power_rf(m_opt)
+power = power_rf([m_opt])
 
 # Compute the site area
 V_r = FunctionSpace(domain.mesh, 'R', 0)
