@@ -1,17 +1,15 @@
 from dolfin_adjoint import *
 from opentidalfarm import *
-from dolfin_adjoint import Control
-import Optizelle
+from dolfin_adjoint import Control, L2, BaseRieszMap
 from model_turbine import ModelTurbine
 import os.path
 import time
-from rectangle_mesh_domain import *
 
 """ Turbine farm layout optimization using continuous turbine density
 approach. Underlying PDE described by the shalow water equations in steady state.
 Inequality constraints for friction given by lower limit =0 and upper limit 0.589"""
 
-set_log_level(INFO)
+set_log_level(ERROR)
 
 output_path = "results"
 
@@ -20,28 +18,41 @@ model_turbine = ModelTurbine()
 print model_turbine
 
 # Set up domain
-mesh = Mesh('mesh.xml')
-domain = RectangularMeshDomain(mesh, 0, 0, 2000, 1000)
-domains = domain.cell_ids
+x_max = 2000
+y_max = 1000
 
-# Set up the domain and site_dx which integrates over the farm only
+N = 20
 prob_params = SteadySWProblem.default_parameters()
+domain = RectangularDomain(0, 0, x_max, y_max, nx=N, ny=N)
+#domain = Domain(Mesh("mesh.xml"), dx, ds)
 prob_params.domain = domain
-V = FunctionSpace(domain.mesh, "CG", 1)
+
+# Define the farm and set site_dx such that we integrate over the farm only
 turbine = SmearedTurbine()
-farm = Farm(domain, turbine, function_space=V)
-site_dx = Measure("dx")[domains]
+W = FunctionSpace(domain.mesh, "DG", 0)
+farm = Farm(domain, turbine, function_space=W)
+
+class FarmDomain(SubDomain):
+    def inside(self, x, on_boundary):                                                                                                                                                          
+        return between(x[0], (0.375*x_max, 0.625*x_max)) and between(x[1], (0.35*y_max, 0.65*y_max))
+
+farm_cf = CellFunction("size_t", domain.mesh)
+farm_cf.set_all(0)          
+FarmDomain().mark(farm_cf, 1)
+#plot(farm_cf, interactive=True)
+
+site_dx = Measure("dx")(subdomain_data=farm_cf)
 farm.site_dx = site_dx(1)
-#f = File(os.path.join(output_path, "turbine_farms.pvd"))
-#f << domains
+prob_params.tidal_farm = farm
 
 # Initial turbine friction field
 """Make sure that larger than lower bound of optimization (=zero) as interior point 
 algorithm otherwise fails""" 
-f = Constant(0.01)
-g = Constant(0.001)
-h = Expression('(x[0] <= 1250 && x[1] <= 650 && 750 <= x[0] && 350 <= x[1]) ? f : g', f=f, g=g)
-farm.friction_function.assign(h)
+#f = Constant(0.01)
+#g = Constant(0.001)
+#h = Expression('(x[0] <= 1250 && x[1] <= 650 && 750 <= x[0] && 350 <= x[1]) ? f : g', f=f, g=g, degree=2)
+#farm.friction_function.assign(h)
+#farm.friction_function.vector()[:] = model_turbine.maximum_smeared_friction/2
 
 prob_params.tidal_farm = farm
 
@@ -56,7 +67,7 @@ prob_params.bcs = bcs
 prob_params.viscosity = Constant(5.)
 prob_params.depth = Constant(50.0)
 prob_params.friction = Constant(0.0025)
-prob_params.initial_condition = Expression(("1e-7", "0", "0"))
+prob_params.initial_condition = Expression(("1e-7", "0", "0"), degree=2)
 
 print prob_params
 problem = SteadySWProblem(prob_params)
@@ -72,40 +83,50 @@ solver = CoupledSWSolver(problem, sol_params)
 power_functional = PowerFunctional(problem)
 cost_functional = model_turbine.cost_coefficient * CostFunctional(problem)
 functional = power_functional  - cost_functional
+functional *= 1e-6 # convert to MW
 
 # Define the control
 control = Control(farm.friction_function) 
-rf = FenicsReducedFunctional(functional, control, solver)
+rf = FenicsReducedFunctional(-functional, control, solver)
+rf([farm.friction_function])
 
-# define optimization problem for Optizelle
+# Define optimization problem 
 opt_problem = MaximizationProblem(rf, bounds=(0., model_turbine.maximum_smeared_friction))
 
-parameters = {
-             "maximum_iterations": 200,
-             "optizelle_parameters":
-                 {
-                 "msg_level" : 10,
-                 "algorithm_class" : Optizelle.AlgorithmClass.TrustRegion,
-                 "H_type" : Optizelle.Operators.BFGS,
-                 "dir" : Optizelle.LineSearchDirection.BFGS,
-                 "ipm": Optizelle.InteriorPointMethod.LogBarrier,
-                 "sigma": 0.95, 
-                 "gamma": 0.5,
-                 "linesearch_iter_max" : 20,
-                 "krylov_iter_max" : 100,
-                 "eps_krylov" : 1e-9,
-                 "eps_grad" : 1e-200,
-                 "eps_dx" : 1e-20
-                 }
+parameters = { "monitor": None,
+               "type": "blmvm",
+               "max_it": 50,
+               "subset_type": "matrixfree",
+               "fatol": 0.0,
+               "frtol": 1e-0,
+               "gatol": 0.0,
+               "grtol": 0.0,
              }
 
-opt_solver = OptizelleSolver(opt_problem, parameters=parameters)
+# Define custom Riesz map
+class L2Farm(BaseRieszMap):
+    def assemble(self):
+        u = TrialFunction(self.V)
+        v = TestFunction(self.V)
+
+        A = inner(u, v)*farm.site_dx
+        a = assemble(A, keep_diagonal=True)
+        a.ident_zeros()
+        return a
+                  
+# Remove the riesz_map to switch from L2Farm norm to l2 norm    
+opt_solver = TAOSolver(opt_problem, parameters, riesz_map=L2Farm(W))
 
 # Start time for optimisation
 tic = time.clock()
 
 # Solve optimisation problem using Optizelle
 m_opt = opt_solver.solve()
+from IPython import embed; embed()
+
+# Alternatively solve with scipy.optimize
+#m_opt = minimize(rf, bounds=[0, model_turbine.maximum_smeared_friction],
+#                 method="L-BFGS-B", options={'maxiter': 25})
 
 # stopping time for optimisation
 toc = time.clock()
@@ -132,7 +153,7 @@ cost = float(model_turbine.cost_coefficient * total_friction)
 # Compute the pure power production
 # Note: don't use checkpoint here
 power_rf = FenicsReducedFunctional(power_functional, control, solver)
-power = power_rf.evaluate(m_opt)
+power = power_rf([m_opt])
 
 # Compute the site area
 V_r = FunctionSpace(domain.mesh, 'R', 0)
